@@ -1,6 +1,19 @@
 # Local Agent Stack: VS Code + Cline + Ollama
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/macromeer/safe-local-agent?style=social)](https://github.com/macromeer/safe-local-agent/stargazers)
+[![GitHub last commit](https://img.shields.io/github/last-commit/macromeer/safe-local-agent)](https://github.com/macromeer/safe-local-agent/commits/main)
+
 This repository bootstraps a safe local coding-agent workflow in VS Code using Cline + Ollama.
+
+## Why this repo
+
+Most local-agent setup repos optimize for "it runs". This one optimizes for "it runs safely and repeatedly".
+
+- Safety first: strict human-in-the-loop defaults, not autonomous free-run.
+- Practical guardrails: repo-local `.clinerules` to constrain scope and reduce failure loops.
+- Fast start: ready-to-create Ollama model profiles for Cline.
+- Publishable template: minimal structure you can fork and adapt to your own stack.
 
 ## Stack
 
