@@ -48,7 +48,7 @@ ollama pull qwen3:0.6b
 3. Create local Cline models
 
 ```bash
-cd /opt/vscode-cline-ollama-template
+cd /opt/safe-local-agent
 ollama create cline-deep -f profiles/cline-deep/Modelfile
 ollama create cline-dev -f profiles/cline-dev/Modelfile
 ollama create cline-fast -f profiles/cline-fast/Modelfile
@@ -97,7 +97,7 @@ Why: small local models can loop in Plan mode and retry failing tool calls.
 
 ## Typical Usage
 
-1. Open `/opt/vscode-cline-ollama-template` in VS Code.
+1. Open `/opt/safe-local-agent` in VS Code.
 2. Start Ollama (`OLLAMA_KEEP_ALIVE=-1 ollama serve`).
 3. Open Cline and select a local model.
 4. Start a new task and give narrow prompts.
