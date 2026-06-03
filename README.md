@@ -6,6 +6,34 @@
 
 This repository bootstraps a safe local coding-agent workflow in VS Code using Cline + Ollama.
 
+## Quickstart (60 seconds)
+
+```bash
+ollama pull qwen2.5-coder:14b
+ollama pull qwen3:0.6b
+
+cd /opt/safe-local-agent
+ollama create cline-dev -f profiles/cline-dev/Modelfile
+
+OLLAMA_KEEP_ALIVE=-1 ollama serve
+```
+
+Then in VS Code Cline settings:
+
+- Provider: `Ollama`
+- Base URL: `http://localhost:11434`
+- Model: `cline-dev`
+- Mode: `Act`
+- Auto-approve: `Read` only (or disabled)
+
+Run your first prompt:
+
+```text
+Open only profiles/cline-dev/Modelfile.
+Explain each line briefly.
+Do not modify any files.
+```
+
 ## Why this repo
 
 Most local-agent setup repos optimize for "it runs". This one optimizes for "it runs safely and repeatedly".
