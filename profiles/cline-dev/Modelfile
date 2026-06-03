@@ -1,0 +1,6 @@
+FROM qwen2.5-coder:14b
+ENV OLLAMA_KEEP_ALIVE=-1
+PARAMETER num_ctx 32768
+PARAMETER temperature 0.2
+PARAMETER top_p 0.9
+SYSTEM You are a precise coding assistant for VS Code projects. Prefer small, safe diffs and explain tradeoffs briefly.
