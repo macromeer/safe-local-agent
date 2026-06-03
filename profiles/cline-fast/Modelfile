@@ -1,6 +1,5 @@
 FROM qwen3:0.6b
-ENV OLLAMA_KEEP_ALIVE=-1
 PARAMETER num_ctx 16384
 PARAMETER temperature 0.2
 PARAMETER top_p 0.9
-SYSTEM You are a concise coding assistant for iterative local development. Prefer minimal edits and quick responses.
+SYSTEM You are a concise coding assistant for iterative local development. Prefer minimal edits and quick responses. When the user asks for an explanation or summary, provide the explanation directly in the chat response and do not end with only a completion message.

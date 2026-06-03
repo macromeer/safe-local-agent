@@ -1,10 +1,10 @@
-# Local Agent Stack: VS Code + Cline + Ollama
+# Safe Local Agent: Human-in-the-Loop VS Code Coding Workflow
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/macromeer/safe-local-agent?style=social)](https://github.com/macromeer/safe-local-agent/stargazers)
 [![GitHub last commit](https://img.shields.io/github/last-commit/macromeer/safe-local-agent)](https://github.com/macromeer/safe-local-agent/commits/main)
 
-This repository bootstraps a safe local coding-agent workflow in VS Code using Cline + Ollama.
+This repository bootstraps a safe, human-in-the-loop local coding-agent workflow in VS Code using Cline + Ollama.
 
 ## Quickstart (60 seconds)
 
@@ -34,6 +34,8 @@ Explain each line briefly.
 Do not modify any files.
 ```
 
+You should see the line-by-line explanation in the chat response itself. If Cline only shows a completion banner, the local model likely finished the task without emitting the actual explanation.
+
 ## Why this repo
 
 Most local-agent setup repos optimize for "it runs". This one optimizes for "it runs safely and repeatedly".
@@ -57,10 +59,10 @@ Most local-agent setup repos optimize for "it runs". This one optimizes for "it 
 - `profiles/cline-dev/Modelfile` (`qwen2.5-coder:14b`, 32K ctx)
 - `profiles/cline-fast/Modelfile` (`qwen3:0.6b`, 16K ctx)
 
-All profiles include:
+Keep-alive is set when starting Ollama:
 
-```text
-ENV OLLAMA_KEEP_ALIVE=-1
+```bash
+OLLAMA_KEEP_ALIVE=-1 ollama serve
 ```
 
 ## Install
@@ -112,11 +114,43 @@ Open Cline Settings and set:
 - Model: `cline-deep` or `cline-dev` or `cline-fast`
 - Request timeout: `300000`
 
-Context window should match profile:
+## Local MCP Tools Server
 
-- `cline-deep`: `32768`
-- `cline-dev`: `32768`
-- `cline-fast`: `16384`
+This repository includes a production-oriented local MCP tools server in `mcp-server-local-agent/`.
+
+What it provides:
+
+- Workspace info and path-safe file listing
+- Line-range file reads and text search
+- Optional write and local command tools (manual approval recommended)
+
+Start it through Cline MCP settings using `uv`:
+
+```json
+{
+	"mcpServers": {
+		"local-agent-tools": {
+			"autoApprove": [
+				"workspace_info",
+				"list_files",
+				"read_file_lines",
+				"grep_text"
+			],
+			"disabled": false,
+			"timeout": 60,
+			"transportType": "stdio",
+			"command": "uv",
+			"args": [
+				"run",
+				"--project",
+				"/opt/safe-local-agent/mcp-server-local-agent",
+				"python",
+				"/opt/safe-local-agent/mcp-server-local-agent/main.py"
+			]
+		}
+	}
+}
+```
 
 ## Safe Workflow Defaults
 

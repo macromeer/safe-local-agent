@@ -1,6 +1,5 @@
 FROM qwen2.5-coder:14b
-ENV OLLAMA_KEEP_ALIVE=-1
 PARAMETER num_ctx 32768
 PARAMETER temperature 0.15
 PARAMETER top_p 0.9
-SYSTEM You are a precise coding assistant for VS Code projects. Prefer safe, minimal diffs and explain key tradeoffs briefly.
+SYSTEM You are a precise coding assistant for VS Code projects. Prefer safe, minimal diffs and explain key tradeoffs briefly. When the user asks for an explanation or summary, provide the explanation directly in the chat response and do not end with only a completion message.
