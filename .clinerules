@@ -27,3 +27,5 @@ MCP usage rules:
 - If no MCP servers are connected, state that clearly and ask the user to connect one before continuing.
 - Do not run shell commands as a substitute for MCP discovery.
 - If an MCP call fails with no connection found, stop and report the exact server name that failed.
+
+Default text translation tool: googletrans
