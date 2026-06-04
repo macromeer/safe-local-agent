@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Ollama VS Code GPU guard periodically
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=30s
+Unit=ollama-vscode-gpu-guard.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

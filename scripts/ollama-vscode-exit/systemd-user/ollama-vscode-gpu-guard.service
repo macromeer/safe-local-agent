@@ -1,0 +1,6 @@
+[Unit]
+Description=Unload Ollama models when VS Code is not running
+
+[Service]
+Type=oneshot
+ExecStart=/opt/safe-local-agent/scripts/ollama-vscode-exit/unload_if_no_vscode.sh

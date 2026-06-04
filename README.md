@@ -6,6 +6,9 @@
 
 This repository helps you run a local coding agent in VS Code with strong human approval boundaries.
 
+Platform support:
+- Linux only (systemd-based workflows in this repo assume Linux).
+
 It combines:
 - Cline as the coding-agent UI in VS Code
 - Ollama as the local model runtime
@@ -140,6 +143,55 @@ ollama list
 ```bash
 OLLAMA_KEEP_ALIVE=-1 ollama serve
 ```
+
+Notes:
+- `OLLAMA_KEEP_ALIVE=-1` keeps models resident for low-latency follow-up prompts while you are actively using Cline.
+- If you want automatic unload when VS Code closes, enable the guard timer described below.
+
+### Optional: Keep Models Hot In VS Code, Unload On Exit
+
+This repo includes a user-level guard that checks every 30 seconds and unloads all Ollama models when no VS Code family process is running.
+
+1. Ensure Ollama service keeps models loaded during active sessions:
+
+```bash
+sudo systemctl edit ollama
+```
+
+Add:
+
+```ini
+[Service]
+Environment="OLLAMA_KEEP_ALIVE=-1"
+```
+
+Apply:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart ollama
+```
+
+2. Install and enable the user timer:
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp /opt/safe-local-agent/scripts/ollama-vscode-exit/systemd-user/ollama-vscode-gpu-guard.service ~/.config/systemd/user/
+cp /opt/safe-local-agent/scripts/ollama-vscode-exit/systemd-user/ollama-vscode-gpu-guard.timer ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now ollama-vscode-gpu-guard.timer
+```
+
+3. Verify behavior:
+
+```bash
+ollama ps
+systemctl --user status ollama-vscode-gpu-guard.timer
+```
+
+Expected:
+- While VS Code/Cline is open and in use, models remain loaded.
+- After VS Code closes, the timer unloads models and GPU VRAM is released.
 
 ## Cline Configuration (VS Code)
 
