@@ -4,9 +4,30 @@
 [![GitHub stars](https://img.shields.io/github/stars/macromeer/safe-local-agent?style=social)](https://github.com/macromeer/safe-local-agent/stargazers)
 [![GitHub last commit](https://img.shields.io/github/last-commit/macromeer/safe-local-agent)](https://github.com/macromeer/safe-local-agent/commits/main)
 
-This repository bootstraps a safe, human-in-the-loop local coding-agent workflow in VS Code using Cline + Ollama.
+This repository helps you run a local coding agent in VS Code with strong human approval boundaries.
 
-## Quickstart (60 seconds)
+It combines:
+- Cline as the coding-agent UI in VS Code
+- Ollama as the local model runtime
+- Repo-local guardrails in `.clinerules`
+- Optional local MCP servers for safer, scoped tool access
+
+## Who This Is For
+
+Use this repo if you want to:
+- run coding-agent workflows locally
+- keep full control over file edits and commands
+- avoid broad autonomous behavior
+- start from a repeatable baseline you can fork
+
+## What You Get
+
+- Predefined Ollama model profiles in `profiles/`
+- A workspace-scoped MCP tools server in `mcp-server-local-agent/main.py`
+- A built-in MCP server repertoire launcher in `mcp-server-local-agent/built_in_servers.py`
+- A generator for Cline MCP config in `mcp-server-local-agent/generate_cline_mcp_config.py`
+
+## Quickstart
 
 ```bash
 ollama pull qwen2.5-coder:14b
@@ -18,15 +39,14 @@ ollama create cline-dev -f profiles/cline-dev/Modelfile
 OLLAMA_KEEP_ALIVE=-1 ollama serve
 ```
 
-Then in VS Code Cline settings:
-
+Then set Cline in VS Code:
 - Provider: `Ollama`
 - Base URL: `http://localhost:11434`
 - Model: `cline-dev`
 - Mode: `Act`
 - Auto-approve: `Read` only (or disabled)
 
-Run your first prompt:
+Run this first prompt:
 
 ```text
 Open only profiles/cline-dev/Modelfile.
@@ -34,38 +54,17 @@ Explain each line briefly.
 Do not modify any files.
 ```
 
-You should see the line-by-line explanation in the chat response itself. If Cline only shows a completion banner, the local model likely finished the task without emitting the actual explanation.
+Expected result:
+- Cline returns a line-by-line explanation in chat
+- Cline does not propose edits
 
-## Why this repo
+## Included Model Profiles
 
-Most local-agent setup repos optimize for "it runs". This one optimizes for "it runs safely and repeatedly".
+- `profiles/cline-deep/Modelfile` (`qwen2.5-coder:14b`, 32K context)
+- `profiles/cline-dev/Modelfile` (`qwen2.5-coder:14b`, 32K context)
+- `profiles/cline-fast/Modelfile` (`qwen3:0.6b`, 16K context)
 
-- Safety first: strict human-in-the-loop defaults, not autonomous free-run.
-- Practical guardrails: repo-local `.clinerules` to constrain scope and reduce failure loops.
-- Fast start: ready-to-create Ollama model profiles for Cline.
-- Publishable template: minimal structure you can fork and adapt to your own stack.
-
-## Stack
-
-- VS Code
-- Cline extension: `saoudrizwan.claude-dev`
-- Ollama at `http://localhost:11434`
-- Local model profiles in `profiles/`
-- Repo-local guardrails in `.clinerules`
-
-## Included Profiles
-
-- `profiles/cline-deep/Modelfile` (`qwen2.5-coder:14b`, 32K ctx)
-- `profiles/cline-dev/Modelfile` (`qwen2.5-coder:14b`, 32K ctx)
-- `profiles/cline-fast/Modelfile` (`qwen3:0.6b`, 16K ctx)
-
-Keep-alive is set when starting Ollama:
-
-```bash
-OLLAMA_KEEP_ALIVE=-1 ollama serve
-```
-
-## Install
+## Full Setup
 
 1. Install Ollama
 
@@ -104,10 +103,9 @@ ollama list
 OLLAMA_KEEP_ALIVE=-1 ollama serve
 ```
 
-## Configure Cline (VS Code)
+## Cline Configuration (VS Code)
 
-Open Cline Settings and set:
-
+Open Cline settings and set:
 - Provider: `Ollama`
 - Base URL: `http://localhost:11434`
 - API key: empty
@@ -116,14 +114,14 @@ Open Cline Settings and set:
 
 ## Local MCP Tools Server
 
-This repository includes a production-oriented local MCP tools server in `mcp-server-local-agent/`.
+This repo includes a production-oriented local MCP tools server in `mcp-server-local-agent/`.
 
-What it provides:
-- Workspace info and path-safe file listing
-- Line-range file reads and text search
-- Optional write and local command tools (manual approval recommended)
+Capabilities:
+- workspace info and path-safe file listing
+- line-range file reads and text search
+- optional write and command tools (manual approval recommended)
 
-Start it through Cline MCP settings using `uv`:
+Add it to Cline MCP settings:
 
 ```json
 {
@@ -151,17 +149,17 @@ Start it through Cline MCP settings using `uv`:
 }
 ```
 
-## Built-In MCP Servers
+## Built-In MCP Server Repertoire
 
-The workspace now also includes a built-in server repertoire that mirrors the upstream MCP Python SDK server set.
+The workspace also includes a built-in server repertoire that mirrors upstream MCP Python SDK server patterns.
 
-Run it with a server name such as `fastmcp_quickstart`, `simple_tool`, `simple_resource`, `simple_prompt`, `structured_output`, `completion`, `simple_pagination`, or `sse_polling_demo`:
+Run one server by name:
 
 ```bash
 uv run --project /opt/safe-local-agent/mcp-server-local-agent python /opt/safe-local-agent/mcp-server-local-agent/built_in_servers.py fastmcp_quickstart
 ```
 
-Use `python /opt/safe-local-agent/mcp-server-local-agent/built_in_servers.py` with no extra argument to see the default quickstart server, or pass another listed server name to switch servers.
+If you omit the server argument, it runs the default quickstart server.
 
 Generate a ready-to-paste Cline `mcpServers` JSON block for all stdio-compatible built-in servers:
 
@@ -169,33 +167,31 @@ Generate a ready-to-paste Cline `mcpServers` JSON block for all stdio-compatible
 uv run --project /opt/safe-local-agent/mcp-server-local-agent python /opt/safe-local-agent/mcp-server-local-agent/generate_cline_mcp_config.py
 ```
 
-## Safe Workflow Defaults
+Note:
+- Cline loads stdio MCP servers directly.
+- Some built-in servers are HTTP/ASGI-oriented and are excluded by default from generator output.
 
-For local models, keep strict human-in-the-loop controls:
+## Safety Defaults
 
+Recommended defaults for local models:
 - Mode: `Act`
 - Auto-approve: `Read` only (or disabled)
-- Approve every write/edit/command manually
+- Require manual approval for each write/edit/command
 
-Why: small local models can loop in Plan mode and retry failing tool calls.
+Why this matters:
+- smaller local models are more likely to loop in Plan mode
+- explicit approvals reduce accidental broad edits
+- bounded prompts improve repeatability
 
-## How `.clinerules` Works
-
-`.clinerules` is repository-local.
-
-- It applies when Cline runs in this workspace.
-- It does not apply globally to every VS Code folder.
-- After editing `.clinerules`, start a new Cline task.
-
-## Typical Usage
+## Typical Usage Flow
 
 1. Open `/opt/safe-local-agent` in VS Code.
-2. Start Ollama (`OLLAMA_KEEP_ALIVE=-1 ollama serve`).
-3. Open Cline and select a local model.
-4. Start a new task and give narrow prompts.
-5. Review and approve each action.
+2. Start Ollama: `OLLAMA_KEEP_ALIVE=-1 ollama serve`.
+3. Open Cline and select one model profile.
+4. Start a task with a narrow prompt and explicit file scope.
+5. Review each action before approval.
 
-Good prompt:
+Example prompt:
 
 ```text
 Open only profiles/cline-dev/Modelfile.
@@ -203,15 +199,32 @@ Add repeat_penalty with value 1.1.
 Do not modify any other file.
 ```
 
+## How `.clinerules` Works
+
+`.clinerules` in this repo is workspace-local:
+- it applies when Cline runs in this workspace
+- it does not apply to unrelated VS Code folders
+- after changing `.clinerules`, start a new Cline task
+
 ## Troubleshooting
 
-- Connection errors: verify Ollama is running and base URL is exactly `http://localhost:11434`.
-- Slow first response: cold load; keep timeout high and keep Ollama running.
-- Agent loops: stop task, restart with tighter prompt.
-- Over-broad edits: point to exact file/function and keep prompts concrete.
+- Connection errors:
+  Verify Ollama is running and base URL is exactly `http://localhost:11434`.
+- Missing or empty chat output:
+  Reduce prompt scope, keep timeout at `300000`, and retry with `cline-dev`.
+- Slow first response:
+  Initial model load can be cold; keep timeout high and keep Ollama running.
+- Agent loops:
+  Stop the task and restart with narrower scope and explicit file boundaries.
+- Over-broad edits:
+  Reference exact files/functions and state non-target files explicitly.
 
-## Publish As Template
+## Limitations
 
-This repo is a strong template for reproducible local-agent workflow with guardrails.
+- This setup is not fully autonomous by design.
+- Cline provider/approval settings remain user-local in each Cline installation.
+- Local model quality and latency vary by machine and model size.
 
-It is not full autonomy: Cline provider/approval settings still live in each user's local Cline UI.
+## Use As Template
+
+This repo is a practical starting point for teams that want reproducible, human-in-the-loop local coding-agent workflows.
