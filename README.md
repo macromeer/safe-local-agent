@@ -119,7 +119,6 @@ Open Cline Settings and set:
 This repository includes a production-oriented local MCP tools server in `mcp-server-local-agent/`.
 
 What it provides:
-
 - Workspace info and path-safe file listing
 - Line-range file reads and text search
 - Optional write and local command tools (manual approval recommended)
@@ -150,6 +149,24 @@ Start it through Cline MCP settings using `uv`:
 		}
 	}
 }
+```
+
+## Built-In MCP Servers
+
+The workspace now also includes a built-in server repertoire that mirrors the upstream MCP Python SDK server set.
+
+Run it with a server name such as `fastmcp_quickstart`, `simple_tool`, `simple_resource`, `simple_prompt`, `structured_output`, `completion`, `simple_pagination`, or `sse_polling_demo`:
+
+```bash
+uv run --project /opt/safe-local-agent/mcp-server-local-agent python /opt/safe-local-agent/mcp-server-local-agent/built_in_servers.py fastmcp_quickstart
+```
+
+Use `python /opt/safe-local-agent/mcp-server-local-agent/built_in_servers.py` with no extra argument to see the default quickstart server, or pass another listed server name to switch servers.
+
+Generate a ready-to-paste Cline `mcpServers` JSON block for all stdio-compatible built-in servers:
+
+```bash
+uv run --project /opt/safe-local-agent/mcp-server-local-agent python /opt/safe-local-agent/mcp-server-local-agent/generate_cline_mcp_config.py
 ```
 
 ## Safe Workflow Defaults

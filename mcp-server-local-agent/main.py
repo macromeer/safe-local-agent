@@ -136,4 +136,40 @@ def run_local_command(command: str, cwd: str = ".", timeout_seconds: int = 30) -
 
 
 if __name__ == "__main__":
-    mcp.run()
+    import sys
+    from io import TextIOWrapper
+
+    import anyio
+    from mcp.server.stdio import stdio_server
+
+    class _FilteredAsyncFile:
+        """Async file wrapper that skips blank lines so the MCP SDK never tries
+        to parse a bare newline as JSON-RPC."""
+
+        def __init__(self, inner: anyio.AsyncFile) -> None:
+            self._inner = inner
+
+        def __aiter__(self):
+            return self._aiter()
+
+        async def _aiter(self):
+            async for line in self._inner:
+                if line.strip():
+                    yield line
+
+        def __getattr__(self, name):
+            return getattr(self._inner, name)
+
+    async def _run():
+        raw_stdin = anyio.wrap_file(
+            TextIOWrapper(sys.stdin.buffer, encoding="utf-8", errors="replace")
+        )
+        filtered_stdin = _FilteredAsyncFile(raw_stdin)
+        async with stdio_server(stdin=filtered_stdin) as (read_stream, write_stream):
+            await mcp._mcp_server.run(
+                read_stream,
+                write_stream,
+                mcp._mcp_server.create_initialization_options(),
+            )
+
+    anyio.run(_run)
