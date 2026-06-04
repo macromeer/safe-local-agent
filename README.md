@@ -64,6 +64,44 @@ Expected result:
 - `profiles/cline-dev/Modelfile` (`qwen2.5-coder:14b`, 32K context)
 - `profiles/cline-fast/Modelfile` (`qwen3:0.6b`, 16K context)
 
+## Model Selection for This Workflow
+
+There is no single best model for every machine and team.
+
+For local, human-in-the-loop coding, select models based on these tradeoffs:
+- Quality: correctness of edits and instruction-following
+- Latency: time to first useful answer
+- Stability: low looping/retry behavior under constrained prompts
+- Cost: local compute and memory requirements
+
+Why Qwen is the default here:
+- strong coding quality per local compute budget
+- broad availability in Ollama
+- practical speed/quality range across profile sizes
+
+When another model may be better:
+- you have more hardware and need stronger long-context reasoning
+- your priority is minimal latency over deeper code quality
+- your tasks are mostly architecture/spec reasoning instead of scoped edits
+
+### Benchmark Protocol (Recommended)
+
+Use this protocol before switching defaults:
+1. Pick 10 to 20 real prompts from your own workflow.
+2. Keep environment fixed (same repo state, Cline settings, approval mode, timeout).
+3. Run each prompt on candidate models with identical wording.
+4. Record for each run:
+	- time to first actionable response
+	- number of approval steps needed
+	- number of correction prompts required
+	- final pass/fail against expected outcome
+5. Compare aggregate results and choose the best quality-latency-stability balance.
+
+Suggested acceptance bar for a default model:
+- high pass rate on your prompt set
+- low correction count
+- predictable latency on your hardware
+
 ## Full Setup
 
 1. Install Ollama
