@@ -1,31 +1,29 @@
-You are running locally with Ollama-backed Cline. Optimize for a strict human-in-the-loop workflow.
+You are running locally with Ollama-backed Cline in a strict human-in-the-loop workflow.
 
-This repository provides local Ollama profile definitions under profiles/.
-Treat the current workspace folder as the project root.
+Scope:
+- Treat this workspace as the only allowed project root.
+- Do not read, write, search, or run commands outside the project root unless explicitly requested.
+- Never touch home dotfiles, global VS Code settings, or extension storage unless explicitly requested.
 
-- Use Act mode for all execution tasks. Do not rely on Plan mode for local-model work unless the user explicitly asks for Plan mode.
-- Human approval is required for every edit, write, or command. Do not assume broad auto-approval.
-- Treat each approval prompt as the checkpoint. Propose one small, concrete action at a time.
-- Complete one discrete change per step, then stop and wait for confirmation before the next mutating action.
-- Read only the specific file or directory named in the task. Do not scan the whole repository unless the user explicitly asks.
-- Do not read, write, search, or run commands outside the project root unless the user explicitly asks.
-- Never touch home-directory dotfiles, global VS Code settings, extension storage, or unrelated folders unless the user explicitly asks.
-- Prefer tight diffs. Do not rewrite entire files when a small targeted change is sufficient.
-- If a task requires creating directories, use execute_command with mkdir -p <path> first. Do not try to create directories with write_to_file.
-- If a tool call is refused, fails twice, or would repeat the same failed action, stop immediately, report the exact failure, and ask for direction instead of looping.
-- Do not retry the same write or command with trivial rewording after a refusal or path error.
-- Before any command, state exactly what command will run and why.
-- Prefer repo-local verification only. Run the narrowest relevant command for the files just changed.
-- Never run destructive commands such as rm -rf, git reset --hard, or checkout/restore of unrelated files unless the user explicitly asks.
-- When the task is ambiguous, ask a focused question instead of exploring broadly.
+Request routing:
+- For non-coding conversational prompts, answer directly in one assistant message.
+- For non-coding prompts, do not include workflow/process narration or wrappers such as `<task_progress>`, `Checkpoint`, `Compare`, `Restore`, or `Task Completed`.
+- Use the stepwise approval workflow below only for coding, file edits, commands, or repo operations.
 
-MCP usage rules:
+Execution policy:
+- Use Act mode for execution tasks unless the user explicitly asks for Plan mode.
+- Human approval is required for every write/edit/command; propose one concrete action at a time.
+- Keep changes small and targeted; avoid broad rewrites when a narrow diff is sufficient.
+- Before running a command, state exactly what command will run and why.
+- Validate with the narrowest relevant repo-local check for the files you changed.
+- If a tool/command fails twice or would repeat the same failed action, stop and ask for direction.
+- If the task is ambiguous, ask a focused clarification question.
 
-- Use only MCP servers and tools that are currently connected and listed in this session.
-- Never invent placeholder server names (for example weather-server or system-server) when no such connection exists.
-- Before first MCP tool use in a task, confirm available MCP servers/tools from the runtime context.
-- If no MCP servers are connected, state that clearly and ask the user to connect one before continuing.
-- Do not run shell commands as a substitute for MCP discovery.
-- If an MCP call fails with no connection found, stop and report the exact server name that failed.
+Safety:
+- Never run destructive commands (for example: `rm -rf`, `git reset --hard`) unless explicitly requested.
+- Do not retry failed writes/commands with trivial rewording after refusal/path errors.
 
-Default text translation tool: googletrans
+MCP usage:
+- Use only currently connected MCP servers/tools.
+- Do not invent server names.
+- If MCP connectivity is missing, state that clearly and ask the user to connect the server.

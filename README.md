@@ -30,6 +30,33 @@ Use this repo if you want to:
 - A built-in MCP server repertoire launcher in `mcp-server-local-agent/built_in_servers.py`
 - A generator for Cline MCP config in `mcp-server-local-agent/generate_cline_mcp_config.py`
 
+## Repository File Map
+
+Top-level files:
+- `.clinerules`: Workspace-local Cline behavior and safety guardrails for this repository.
+- `.gitignore`: Git ignore patterns for local artifacts and generated files.
+- `CONTRIBUTING.md`: Contributor workflow and project contribution guidance.
+- `LICENSE`: MIT license for this repository.
+- `README.md`: Main setup, usage, and troubleshooting documentation.
+
+MCP server project (`mcp-server-local-agent/`):
+- `.python-version`: Preferred Python version for local tooling.
+- `main.py`: Workspace-scoped MCP tools server (file listing, range reads, grep, writes, command execution).
+- `built_in_servers.py`: Launcher for built-in MCP server examples/patterns.
+- `generate_cline_mcp_config.py`: Generates Cline `mcpServers` JSON entries for stdio-compatible built-in servers.
+- `pyproject.toml`: Python project metadata and dependencies for the MCP server package.
+- `uv.lock`: Locked dependency graph for reproducible installs with `uv`.
+
+Model profiles (`profiles/`):
+- `profiles/cline-deep/Modelfile`: Higher-depth local profile (`qwen2.5-coder:14b`, 32K context).
+- `profiles/cline-dev/Modelfile`: Default development profile (`qwen2.5-coder:14b`, 32K context).
+- `profiles/cline-fast/Modelfile`: Lower-latency profile (`qwen3:0.6b`, 16K context).
+
+Optional auto-unload guard (`scripts/ollama-vscode-exit/`):
+- `scripts/ollama-vscode-exit/unload_if_no_vscode.sh`: Unloads Ollama models when no VS Code process is running.
+- `scripts/ollama-vscode-exit/systemd-user/ollama-vscode-gpu-guard.service`: User service unit that runs the unload check script.
+- `scripts/ollama-vscode-exit/systemd-user/ollama-vscode-gpu-guard.timer`: User timer unit that schedules periodic unload checks.
+
 ## Quickstart
 
 ```bash
