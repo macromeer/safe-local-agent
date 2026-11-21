@@ -1,0 +1,18 @@
+name: ShellCheck
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck
+        run: shellcheck -x scripts/*.sh lib/common.sh
+      - name: Python syntax
+        run: python3 -m py_compile lib/set_openclaw_key.py
