@@ -28,6 +28,8 @@ fi
 : "${OPENCLAW_VERSION:=2026.11.6}"
 : "${OPENCLAW_PORT:=18789}"
 : "${OPENCLAW_UNIT:=openclaw-gateway}"
+: "${PONYTAIL:=no}"
+: "${PONYTAIL_REF:=96608e078b2d5ea607c5c3b8b5a54d1c1fba6846}"
 : "${PRIVILEGED_GROUPS:=wheel sudo admin docker podman libvirt lxd incus disk adm systemd-journal ollama}"
 
 COLIBRI_STATE_DIR=/var/lib/$COLIBRI_STATE_NAME

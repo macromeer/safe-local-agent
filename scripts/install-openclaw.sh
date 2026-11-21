@@ -103,6 +103,14 @@ fi
 
 set_key
 
+if [[ $PONYTAIL == yes ]]; then
+  log "installing the ponytail skills ($PONYTAIL_REF) into $home/.openclaw/skills"
+  # Downloaded and unpacked as the agent, so the files end up owned by it.
+  as_user "$AGENT_USER" bash -c 'mkdir -p ~/.openclaw/skills && curl -fsSL "$1" | tar -xz -C ~/.openclaw/skills --strip-components=3 --wildcards "*/.openclaw/skills/*"' \
+    _ "https://github.com/DietrichGebert/ponytail/archive/$PONYTAIL_REF.tar.gz" \
+    || warn "could not install the ponytail skills"
+fi
+
 log "installing the gateway as a systemd user service for $AGENT_USER"
 as_user "$AGENT_USER" openclaw gateway install
 as_user "$AGENT_USER" systemctl --user enable -q "$OPENCLAW_UNIT.service" 2>/dev/null \

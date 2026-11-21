@@ -143,6 +143,8 @@ sudo ./scripts/install-openclaw.sh --key-only             # after changing the C
 
 **Update OpenClaw:** set `OPENCLAW_VERSION` in `config.env`, then `sudo ./scripts/install-openclaw.sh --skip-onboard`.
 
+**Add the [ponytail](https://github.com/DietrichGebert/ponytail) coding skills:** set `PONYTAIL=yes` in `config.env`, then `sudo ./scripts/install-openclaw.sh --skip-onboard`. They are Markdown instructions, pinned to a commit in `PONYTAIL_REF`, and show up in OpenClaw as `/ponytail`, `/ponytail-review` and so on. To remove them: `sudo -iu mrdata rm -r ~/.openclaw/skills/ponytail*`.
+
 **Update Colibri:** `git pull` and rebuild in `/opt/colibri`, then `sudo systemctl restart colibri`.
 
 ## Troubleshooting
