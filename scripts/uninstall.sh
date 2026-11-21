@@ -6,25 +6,27 @@ source "$(dirname -- "${BASH_SOURCE[0]}")/../lib/common.sh"
 
 usage() {
   cat <<EOF
-Usage: sudo $0 [--openclaw] [--colibri [--purge-colibri]] [--agent-user] [--yes]
+Usage: sudo $0 [--openclaw] [--colibri [--purge-colibri]] [--searxng] [--agent-user] [--yes]
 
   --openclaw       remove the gateway service and the openclaw package from $AGENT_USER
                    (keeps ~$AGENT_USER/.openclaw: config, sessions, workspace)
   --colibri        stop and remove the $COLIBRI_UNIT service (keeps the model copy and key)
   --purge-colibri  with --colibri: also delete $COLIBRI_STATE_DIR, $COLIBRI_KEY_FILE
                    and the $COLIBRI_USER user
+  --searxng        stop and remove the $SEARXNG_UNIT Quadlet (keeps $SEARXNG_CONFIG_DIR and the image)
   --agent-user     delete the user $AGENT_USER AND ITS HOME FOLDER
   --yes            do not ask before deleting data
 EOF
 }
 
-do_openclaw=no do_colibri=no purge=no do_user=no yes=no
+do_openclaw=no do_colibri=no purge=no do_searxng=no do_user=no yes=no
 [[ $# -gt 0 ]] || { usage; exit 0; }
 while [[ $# -gt 0 ]]; do
   case $1 in
     --openclaw)      do_openclaw=yes ;;
     --colibri)       do_colibri=yes ;;
     --purge-colibri) purge=yes ;;
+    --searxng)       do_searxng=yes ;;
     --agent-user)    do_user=yes ;;
     --yes)           yes=yes ;;
     -h|--help)       usage; exit 0 ;;
@@ -65,12 +67,25 @@ if [[ $do_colibri == yes ]]; then
   fi
 fi
 
+if [[ $do_searxng == yes ]]; then
+  log "removing the $SEARXNG_UNIT Quadlet"
+  systemctl stop "$SEARXNG_UNIT" 2>/dev/null || true
+  rm -f "/etc/containers/systemd/$SEARXNG_UNIT.container"
+  systemctl daemon-reload
+  log "removed; kept $SEARXNG_CONFIG_DIR and the image (podman rmi to delete it)"
+  if user_exists "$AGENT_USER"; then
+    log "the agent's web search still points at it: sudo -iu $AGENT_USER openclaw config unset tools.web.search.provider"
+  fi
+fi
+
 if [[ $do_user == yes ]] && user_exists "$AGENT_USER"; then
   confirm "This deletes the user $AGENT_USER and everything in $(home_of "$AGENT_USER")."
   loginctl disable-linger "$AGENT_USER" || true
   loginctl terminate-user "$AGENT_USER" 2>/dev/null || true
   pkill -u "$AGENT_USER" 2>/dev/null || true
   sleep 1
+  results=${RESEARCH_DIR:-$(home_of "$AGENT_USER")/research}
+  if command -v semanage >/dev/null; then semanage fcontext -d "$results(/.*)?" 2>/dev/null || true; fi
   userdel -r "$AGENT_USER"
   log "deleted user $AGENT_USER"
 fi

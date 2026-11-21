@@ -203,6 +203,176 @@ else
 fi
 
 # --------------------------------------------------------------------------
+section "OpenClaw settings and sandbox"
+if [[ $root == yes ]] && user_exists "$AGENT_USER" && [[ -f $(home_of "$AGENT_USER")/.openclaw/openclaw.json ]]; then
+  declare -A cfg=() sbx=()
+  while IFS='=' read -r k v; do cfg[$k]=$v; done < <(config_py show 2>/dev/null || true)
+  agents=$(oc agents list --json 2>/dev/null | config_py agents 2>/dev/null || true)
+  main_id=$(awk '$3 == "default" {print $1; exit}' <<<"$agents")
+  main_ws=$(awk '$3 == "default" {print $2; exit}' <<<"$agents")
+  # With several agents, sandbox explain needs --agent (it won't guess)
+  while IFS='=' read -r k v; do sbx[$k]=$v; done < <(oc sandbox explain ${main_id:+--agent "$main_id"} --json 2>/dev/null | config_py explain 2>/dev/null || true)
+
+  case ${cfg[tools_profile]:-} in
+    coding|minimal|messaging) pass "tool profile: ${cfg[tools_profile]}" ;;
+    "") fail "could not read OpenClaw's config" ;;
+    *) warning "tool profile: ${cfg[tools_profile]}: every tool, plugin tools included (install-openclaw.sh --harden-only)" ;;
+  esac
+  if [[ ${cfg[browser_enabled]:-} == false ]]; then pass "browser control is off"
+  else warning "browser control is on: web pages are the usual way in for prompt injection (install-openclaw.sh --harden-only)"; fi
+  if [[ -n ${cfg[plugins_allow]:-} ]]; then pass "only listed plugins load: ${cfg[plugins_allow]}"
+  else warning "plugins.allow is empty: any plugin found in its folders may load (install-openclaw.sh --harden-only)"; fi
+
+  if [[ ${sbx[sandboxed]:-} == true ]]; then
+    pass "the main session runs in a ${sbx[backend]} sandbox (mode ${sbx[mode]})"
+    if [[ ${cfg[sandbox_network]:-} == none ]]; then pass "commands in the sandbox have no network"
+    else note "commands in the sandbox can use the network (${cfg[sandbox_network]:-?})"; fi
+    if [[ -z ${sbx[open_tools]:-} ]]; then pass "gateway, cron, nodes and automations tools are blocked in the sandbox"
+    else fail "the sandbox lets the agent use ${sbx[open_tools]}, which act from outside it (tools.sandbox.tools)"; fi
+    main_deny=$(config_py agent "${main_id:-main}" 2>/dev/null | sed -n 's/^deny=//p' || true)
+    gw_usable=$(tr ',' '\n' <<<"${sbx[gateway_tools]:-}" | grep -vxF -f <(tr ',' '\n' <<<"$main_deny") | paste -sd, || true)
+    note "gateway tools ${main_id:-the agent} may use from the sandbox: ${gw_usable:-none} (SANDBOX_GATEWAY_TOOLS)"
+    if [[ ${cfg[external_binds]:-} == true ]]; then
+      note "all sandboxes may mount folders from outside their workspace (dangerouslyAllowExternalBindSources, for SANDBOX_BINDS)"
+    fi
+    # Start a throwaway container the way the sandbox runs (as the agent, its
+    # UID inside, no network) to see that rootless Podman and the image work.
+    # Removed again by --rm.
+    agent_ids="$(id -u "$AGENT_USER"):$(id -g "$AGENT_USER")"
+    out=$(as_user "$AGENT_USER" timeout 60 podman run --rm --network none --read-only --cap-drop ALL \
+      --userns keep-id --user "$agent_ids" openclaw-sandbox:trixie-slim \
+      sh -c 'id -u; curl -s -m 3 -o /dev/null https://example.com && echo net-ok || echo net-blocked' 2>&1 || true)
+    if [[ $out == "$(id -u "$AGENT_USER")"$'\n'net-blocked ]]; then
+      pass "a test container from the sandbox image starts as $AGENT_USER's UID, without network"
+    else
+      fail "a test container from the sandbox image did not start as expected: $(tr '\n' ' ' <<<"$out" | head -c 300)"
+    fi
+    if [[ ${sbx[elevated]:-} == true ]]; then fail "elevated exec is on: it runs commands outside the sandbox (tools.elevated.enabled)"
+    else pass "elevated exec is off"; fi
+  elif [[ ${sbx[sandboxed]:-} == unknown ]]; then
+    fail "openclaw sandbox explain failed: ${sbx[error]:-}"
+  elif [[ ${sbx[sandboxed]:-} == false ]]; then
+    warning "no sandbox: the agent's commands can change its own OpenClaw setup (install-sandbox.sh)"
+    if [[ ${cfg[elevated]:-} == true ]]; then note "elevated exec is on (it only matters once there is a sandbox)"; fi
+  else
+    fail "openclaw sandbox explain gave no answer"
+  fi
+
+  # Two agents: the default one (shell, files) and researcher (web pages, no
+  # shell, no own workspace in its sandbox, writes only the results folder).
+  # main reads the results read-only.
+  results=${RESEARCH_DIR:-$(home_of "$AGENT_USER")/research}
+  researcher_ws=$(awk '$1 == "researcher" {print $2; exit}' <<<"$agents")
+  if awk '$1 == "reader" {f=1} END {exit !f}' <<<"$agents"; then
+    warning "the old 'reader' agent still exists (install-sandbox.sh replaces it with 'researcher')"
+  fi
+  if [[ -z $researcher_ws ]]; then
+    if [[ ${sbx[sandboxed]:-} == true ]]; then warning "no researcher agent: web pages can't be read (install-sandbox.sh)"; fi
+  else
+    declare -A rs=() mcfg=()
+    while IFS='=' read -r k v; do rs[$k]=$v; done < <(oc sandbox explain --agent researcher --json 2>/dev/null | config_py explain 2>/dev/null || true)
+    while IFS='=' read -r k v; do mcfg[$k]=$v; done < <(config_py agent "$main_id" 2>/dev/null || true)
+    rcfg_model=$(config_py agent researcher 2>/dev/null | sed -n 's/^model=//p' || true)
+    if [[ ${rs[sandboxed]:-} != true ]]; then fail "the researcher agent is not sandboxed"
+    elif [[ -n ${rs[shell_tools]:-} ]]; then fail "the researcher agent can use ${rs[shell_tools]}: it should have no shell (install-sandbox.sh)"
+    elif [[ -n ${rs[open_tools]:-} ]]; then fail "the researcher agent can use ${rs[open_tools]}, which act from outside the sandbox"
+    else pass "researcher agent: sandboxed, no shell"; fi
+    if [[ $researcher_ws/ == "$main_ws"/* ]]; then
+      fail "the researcher's workspace ($researcher_ws) is inside $main_id's, which $main_id can write: it could rewrite the researcher's instructions (delete the agent, run install-sandbox.sh)"
+    fi
+    if [[ " ${rs[mounts]:-}" == *" $researcher_ws:"* ]]; then
+      fail "the researcher's own workspace is in its sandbox: it could rewrite its instructions (workspaceAccess must be none)"
+    else
+      pass "the researcher's own workspace (AGENTS.md, skills) is not in its sandbox"
+    fi
+    if command -v selinuxenabled >/dev/null && selinuxenabled && [[ -d $results ]]; then
+      label=$(stat -c %C "$results" 2>/dev/null || true)
+      if [[ $label == *:container_file_t:* ]]; then pass "SELinux lets the sandboxes use $results ($label)"
+      else fail "SELinux blocks the sandboxes from $results (label ${label:-?}, needs container_file_t: install-sandbox.sh)"; fi
+    fi
+    if [[ " ${rs[mounts]:-} " == *" $results:/workspace/results:rw "* ]]; then pass "the researcher writes its results to $results"
+    else warning "the researcher can't write to $results (install-sandbox.sh)"; fi
+    if [[ ",${rs[gateway_tools]:-}," == *,web_fetch,* ]]; then pass "researcher can read web pages (web_fetch)"
+    else warning "researcher can't read web pages: web_fetch is missing from its tools (install-sandbox.sh)"; fi
+
+    if [[ ",${mcfg[deny]:-}," == *,web_fetch,* ]]; then pass "$main_id can't read web pages itself"
+    else note "$main_id can read web pages itself (web_fetch in SANDBOX_GATEWAY_TOOLS)"; fi
+    if [[ ${mcfg[external_binds]:-} != true && ${cfg[external_binds]:-} != true ]]; then
+      fail "$main_id's sandbox won't start: OpenClaw refuses /research without dangerouslyAllowExternalBindSources (install-sandbox.sh)"
+    fi
+    if [[ " ${sbx[mounts]:-} " == *" $results:/research:ro "* ]]; then pass "$main_id sees the research results read-only at /research"
+    elif [[ " ${sbx[mounts]:-} " == *" $results:/research:rw "* ]]; then fail "$main_id can WRITE the research results (/research must be :ro)"
+    else warning "$main_id can't see the research results at /research (install-sandbox.sh)"; fi
+    if [[ " ${mcfg[extra_paths]:-} " == *" $results "* ]]; then pass "$main_id's memory search covers $results"
+    else warning "$main_id's memory search doesn't cover the research results (install-sandbox.sh)"; fi
+    if [[ -n ${mcfg[delegate_to]:-} ]]; then
+      warning "$main_id has subagents.delegateToolsTo (${mcfg[delegate_to]}): it can't work in the sandbox and makes $main_id fall back to copies of itself"
+    fi
+    if [[ ${rcfg_model:-unset} == set ]]; then note "researcher has its own model: it may load a second one on the GPU"; fi
+    for ws in "$main_ws" "$researcher_ws"; do
+      if grep -qs 'safe-local-agent:security begin' "$ws/AGENTS.md"; then pass "security instructions in $ws/AGENTS.md"
+      else warning "no security instructions in $ws/AGENTS.md (install-sandbox.sh)"; fi
+    done
+  fi
+else
+  skip "OpenClaw settings and sandbox (need root and an OpenClaw config)"
+fi
+
+# --------------------------------------------------------------------------
+section "SearXNG: $SEARXNG_UNIT.service"
+if ! systemctl cat "$SEARXNG_UNIT" >/dev/null 2>&1; then
+  skip "not installed (optional: install-searxng.sh)"
+else
+  if systemctl -q is-active "$SEARXNG_UNIT"; then pass "running"; else fail "not running (journalctl -u $SEARXNG_UNIT -n 40)"; fi
+  check_loopback "SearXNG" "$SEARXNG_PORT"
+  code=$(http_code "http://127.0.0.1:$SEARXNG_PORT/search?q=test&format=json")
+  if [[ $code == 200 ]]; then pass "answers JSON searches"
+  else fail "JSON search answered $code (needs search.formats: [html, json] in $SEARXNG_CONFIG_DIR/settings.yml)"; fi
+  # The container's processes sit in libpod-payload-*; Podman's own conmon (root) does not.
+  cg=$(systemctl show -p ControlGroup --value "$SEARXNG_UNIT" 2>/dev/null || true)
+  uids=""
+  if [[ -n $cg ]]; then
+    uids=$(find "/sys/fs/cgroup$cg" -path '*libpod-payload-*' -name cgroup.procs -exec cat {} + 2>/dev/null \
+      | while read -r p; do stat -c %u "/proc/$p" 2>/dev/null; done | sort -u | paste -sd ' ')
+  fi
+  if [[ -z $uids ]]; then warning "could not find the container's processes"
+  elif [[ " $uids" == *" 0 "* ]]; then fail "the container runs as real root: an escape would be root on this machine (UserNS=auto)"
+  else pass "the container runs in its own user namespace (host UID $uids)"; fi
+  if [[ $root == yes ]] && user_exists "$AGENT_USER" && [[ -f $(home_of "$AGENT_USER")/.openclaw/openclaw.json ]]; then
+    if [[ ${cfg[web_search_provider]:-} == searxng ]]; then pass "OpenClaw searches with SearXNG (${cfg[searxng_url]:-?})"
+    else note "OpenClaw's web search provider is ${cfg[web_search_provider]:-unset}, not searxng (install-searxng.sh)"; fi
+  fi
+fi
+
+# --------------------------------------------------------------------------
+section "This machine"
+docker_members=$(getent group docker | cut -d: -f4 | tr ',' ' ')
+if [[ " $docker_members " == *" $admin "* ]]; then
+  warning "your account ($admin) is in the docker group: root without a password for anything running as you (gpasswd -d $admin docker)"
+fi
+if systemctl -q is-active docker.service 2>/dev/null; then
+  if command -v podman >/dev/null; then warning "Docker is running: its firewall rules also block Podman containers (SearXNG, the sandbox)"
+  else note "Docker is running"; fi
+else
+  pass "Docker is not running"
+fi
+if command -v firewall-cmd >/dev/null && firewall-cmd -q --state 2>/dev/null; then
+  wide=""
+  for zone in $(firewall-cmd --get-active-zones 2>/dev/null | awk '/^[^ \t]/ {print $1}'); do
+    [[ $(firewall-cmd --zone="$zone" --get-target 2>/dev/null) == ACCEPT ]] && wide+=" $zone(accepts everything)"
+    for p in $(firewall-cmd --zone="$zone" --list-ports 2>/dev/null); do
+      range=${p%/*}
+      [[ $range == *-* ]] || continue
+      if (( ${range#*-} - ${range%-*} >= 1000 )); then wide+=" $zone($p)"; fi
+    done
+  done
+  if [[ -z $wide ]]; then pass "the firewall opens no wide port ranges"
+  else warning "your network can reach any port the agent opens:$wide (README: Firewall)"; fi
+else
+  skip "firewall (firewalld is not running)"
+fi
+
+# --------------------------------------------------------------------------
 printf '\n%s%d passed%s, %s%d warnings%s, %s%d failed%s, %d skipped\n' \
   "$C_GRN" "$n_pass" "$C_OFF" "$C_YEL" "$n_warn" "$C_OFF" "$C_RED" "$n_fail" "$C_OFF" "$n_skip"
 (( n_fail == 0 ))
