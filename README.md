@@ -4,15 +4,17 @@
 [![Tests](https://github.com/macromeer/safe-local-agents/actions/workflows/tests.yml/badge.svg)](https://github.com/macromeer/safe-local-agents/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Run a local AI agent ([OpenClaw](https://docs.openclaw.ai)) on local models
+Run local AI agents ([OpenClaw](https://docs.openclaw.ai)) on local models
 ([Colibri](https://github.com/JustVugg/colibri), [Ollama](https://ollama.com))
-on Linux **without giving it your user account.**
+on Linux **without giving them your user account.**
 
 An agent with shell and file tools does whatever your account can do: read
 your SSH keys, browser profiles and documents, use `sudo`, talk to Docker. A
 prompt injection in a web page or a file it reads is enough to turn that
-against you. These scripts give the agent its own locked-down account, give
-each model server its own system user, and check that the separation holds.
+against you. These scripts give the agents their own locked-down account,
+run their tools in a sandbox, split them into one that has a shell and one
+that reads the web, give each model server its own system user, and check
+that the separation holds.
 
 ## How it fits together
 
@@ -28,7 +30,7 @@ flowchart LR
         end
         gw --> tools
         gw --> researcher
-        researcher -- "results/ (read-only for main)" --> tools
+        researcher -- "results (/research, read-only for main)" --> tools
     end
 
     subgraph colibri["system service, user: colibri"]
@@ -54,7 +56,7 @@ flowchart LR
 | Part | Runs as | Can reach |
 |---|---|---|
 | OpenClaw gateway | `mrdata`: password locked, no sudo, no privileged groups | its own home, world-readable files, localhost services, the internet |
-| The agent's tools | without the sandbox: `mrdata`, like the gateway. With it: a rootless Podman container inside `mrdata` | with the sandbox: its workspace and the folders you mount, **no network** |
+| The agents' tools | without the sandbox: `mrdata`, like the gateway. With it: a rootless Podman container per agent, inside `mrdata` | with the sandbox, **no network**. `main`: its workspace, the research results (read-only) and the folders you mount. `researcher`: only the results folder |
 | Colibri | `colibri` system user, hardened unit | only its model copy in `/var/lib/colibri`; **no network except localhost** |
 | Ollama | `ollama` (its official installer already does this) | its models |
 | SearXNG | Podman Quadlet with `UserNS=auto`: root in the container is an unused UID on the host | the search engines it asks; listens on loopback only |
@@ -152,6 +154,10 @@ Open `http://127.0.0.1:18789` and log in with the token:
 sudo -iu mrdata openclaw gateway auth-token --show
 ```
 
+There are two agents: `main` (the default, with a shell) and `researcher`
+(reads web pages, no shell); switch between them in the dashboard's agent
+picker. See [Two agents](#two-agents-main-and-researcher).
+
 To work as the agent user in a terminal, `systemctl --user` needs two extra variables, because `sudo -iu` doesn't connect to its systemd:
 
 ```bash
@@ -234,27 +240,21 @@ sudo -iu mrdata openclaw memory index --force
 ```
 
 **Files that keep changing:** leave them in a shared folder and add it to the
-index. In `/home/mrdata/.openclaw/openclaw.json`, add this under the top-level
-object:
-
-```json
-"memory": {
-  "search": {
-    "extraPaths": [
-      { "path": "/srv/agent-share/docs", "pattern": "**/*.md" }
-    ]
-  }
-}
-```
-
-Keep the file plain JSON (no comments, quoted keys): `install-openclaw.sh
---key-only` reads it with a strict JSON parser. Use the real path, not a
-symlink, because the indexer skips symlinks. Then rebuild and check the index:
+index. `openclaw config set` checks the value against OpenClaw's schema:
 
 ```bash
+sudo -iu mrdata openclaw config set memory.search.extraPaths \
+  '[{"path": "/srv/agent-share/docs", "pattern": "**/*.md"}]' --strict-json
 sudo -iu mrdata openclaw memory index --force
 sudo -iu mrdata openclaw memory status
 ```
+
+This applies to both agents and adds to `main`'s own entry for the research
+results. Use the real path, not a symlink, because the indexer skips
+symlinks. The gateway does the indexing, outside the sandbox, so the folder
+doesn't need to be in `SANDBOX_BINDS` for this. If you edit
+`openclaw.json` by hand, keep it plain JSON (no comments, quoted keys):
+`install-openclaw.sh --key-only` reads it with a strict JSON parser.
 
 ## Security settings
 
@@ -327,9 +327,9 @@ builds the image `openclaw-sandbox:trixie-slim` as `mrdata`, sets up the
   `mrdata`'s file permissions
 - `tools.elevated.enabled: false`
 
-The container sees the agent's workspace at `/workspace` and the folders in
+`main`'s container sees its workspace at `/workspace` and the folders in
 `SANDBOX_BINDS`, but not `~/.openclaw`, the systemd user manager or the
-Podman socket. OpenClaw blocks its `gateway`, `cron`, `nodes` and
+Podman socket (the researcher's is narrower, see below). OpenClaw blocks its `gateway`, `cron`, `nodes` and
 `automations` tools in sandboxed sessions, because they act from outside
 the sandbox. `verify.sh` reads `openclaw sandbox explain` and fails if any
 of them, or elevated exec, is let back in.
@@ -338,7 +338,7 @@ of them, or elevated exec, is let back in.
 |---|---|---|
 | `SANDBOX_NETWORK` | `none` | `bridge` gives commands internet access, for `git clone`, `pip install`, … |
 | `SANDBOX_WORKSPACE` | `rw` | `ro` or `none` to keep the agent's workspace out |
-| `SANDBOX_BINDS` | empty | extra folders, e.g. `"/srv/agent-share:/share:ro /srv/agent-share/out:/out:rw"`. `mrdata` needs access to them as in [Share a folder](#share-a-folder). Not over `/run`: Podman's init lives there. Setting any turns on OpenClaw's `dangerouslyAllowExternalBindSources` for all sandboxes, which folders outside a workspace need |
+| `SANDBOX_BINDS` | empty | extra folders, e.g. `"/srv/agent-share:/share:ro /srv/agent-share/out:/out:rw"`. `mrdata` needs access to them as in [Share a folder](#share-a-folder). Not over `/run`: Podman's init lives there. They are mounted into both agents' sandboxes, so mount writable folders with care. Setting any turns on OpenClaw's `dangerouslyAllowExternalBindSources` for all sandboxes, which folders outside a workspace need |
 | `SANDBOX_GATEWAY_TOOLS` | `web_search memory_search memory_get` | tools that run in the gateway but that `main` may use from the sandbox. OpenClaw's sandbox allows none by default. Adding `web_fetch` lets `main` read pages itself instead of through the researcher. `*`, groups and `gateway`/`cron`/`nodes`/`automations` are refused |
 
 Change a setting in `config.env`, then run the script again. To turn the
@@ -352,8 +352,8 @@ describe.
 
 `verify.sh` reads the settings through `openclaw sandbox explain` for both
 agents, and starts a throwaway container from the sandbox image as `mrdata`
-(UID, no network). It can't start a sandbox through OpenClaw itself, so do
-the tests below after every change.
+(UID, no network). It can't start a sandbox through OpenClaw itself, so run
+`sudo ./scripts/test-agents.sh` after every change (see [Test the sandbox](#test-the-sandbox)).
 
 #### Two agents: main and researcher
 
@@ -482,8 +482,8 @@ Two settings outside the agent's account that the scripts check but don't change
 | `install-searxng.sh` | Writes the SearXNG settings, installs and starts the Quadlet from `systemd/searxng.container.in`, checks that it answers, installs OpenClaw's `searxng` plugin and makes it the agent's web search |
 | `install-sandbox.sh` | Gives the agent subordinate UIDs, builds the sandbox image as the agent, sets OpenClaw to run every session's tools in it, turns elevated exec off, creates the `researcher` agent (replacing an older `reader`) with no workspace of its own in its sandbox, mounts the results folder into both sandboxes (read-write for the researcher, read-only for `main`) and into `main`'s memory search, writes the security instructions into both `AGENTS.md`, recreates the sandboxes, and shows what `openclaw sandbox explain` reports for both agents. `--off` turns the sandbox off |
 | `test-agents.sh` | Runs six tests through both agents with real model turns (config not visible, no network, writing, web search, researcher results found by `main`, researcher without shell and unable to change its instructions) and checks files, tool lists and checksums. Exits 1 if one fails |
-| `verify.sh` | Read-only check of all of the above: separation, model servers, the OpenClaw settings and sandbox (through `openclaw sandbox explain`), SearXNG's port and user namespace, Docker and the firewall. Exits 1 on any failure. Works without root, with fewer checks |
-| `uninstall.sh` | Removes the gateway, the Colibri service (`--purge-colibri` also deletes its data and user), the SearXNG Quadlet or the agent user, one option at a time |
+| `verify.sh` | Read-only check of all of the above: separation, model servers, the OpenClaw settings and sandbox (through `openclaw sandbox explain`, plus a test container), both agents' tools and mounts, the results folder's SELinux label, SearXNG's port and user namespace, Docker and the firewall. Exits 1 on any failure. Works without root, with fewer checks |
+| `uninstall.sh` | Removes the gateway, the Colibri service (`--purge-colibri` also deletes its data and user), the SearXNG Quadlet, or the agent user with its home (and the SELinux rule for the results folder), one option at a time |
 
 Settings are in [`config.env.example`](config.env.example).
 
@@ -496,7 +496,7 @@ sudo -iu mrdata openclaw gateway status
 sudo ./scripts/install-openclaw.sh --key-only             # after changing the Colibri key
 ```
 
-**Update OpenClaw:** set `OPENCLAW_VERSION` in `config.env`, then `sudo ./scripts/install-openclaw.sh --skip-onboard`.
+**Update OpenClaw:** set `OPENCLAW_VERSION` in `config.env`, then `sudo ./scripts/install-openclaw.sh --skip-onboard`. The SearXNG plugin follows OpenClaw's versions: `sudo -iu mrdata openclaw plugins update @openclaw/searxng-plugin@<version>`. Then run `sudo ./scripts/install-sandbox.sh` (it recreates the sandboxes), `verify.sh` and `test-agents.sh`.
 
 **Add the [ponytail](https://github.com/DietrichGebert/ponytail) coding skills:** set `PONYTAIL=yes` in `config.env`, then `sudo ./scripts/install-openclaw.sh --skip-onboard`. They are Markdown instructions, pinned to a commit in `PONYTAIL_REF`, and show up in OpenClaw as `/ponytail`, `/ponytail-review` and so on. To remove them: `sudo -iu mrdata rm -r ~/.openclaw/skills/ponytail*`.
 
@@ -504,7 +504,7 @@ sudo ./scripts/install-openclaw.sh --key-only             # after changing the C
 
 **Update SearXNG:** look up the digest of a newer `searxng/searxng` image, set it as `SEARXNG_IMAGE` in `config.env`, then `sudo ./scripts/install-searxng.sh`. Its log: `journalctl -u searxng -f`.
 
-**After updating OpenClaw**, check its view of the setup again: `sudo -iu mrdata openclaw security audit --deep` and `sudo -iu mrdata openclaw sandbox explain`.
+**After updating OpenClaw**, also check its own view of the setup: `sudo -iu mrdata openclaw security audit --deep` and `sudo -iu mrdata openclaw sandbox explain --agent main`.
 
 ## Troubleshooting
 
@@ -521,7 +521,8 @@ sudo ./scripts/install-openclaw.sh --key-only             # after changing the C
 | `install-sandbox.sh` stops: `/home/mrdata/research` still holds an old researcher workspace | Left by an earlier version. `sudo chattr -R -i /home/mrdata/research`, then `sudo -iu mrdata openclaw agents delete researcher --force`; if OpenClaw doesn't know the agent any more, move the folder away (`sudo mv /home/mrdata/research /home/mrdata/research.old`) |
 | Creating `researcher` fails: deletion cleanup is still pending | An earlier deletion couldn't finish. Run `sudo -iu mrdata openclaw agents delete researcher --force` again, or `sudo -iu mrdata openclaw doctor --fix` |
 | The researcher can't save results: `PermissionError: [Errno 13] Permission denied: '/workspace/results'` | SELinux: the results folder lacks the `container_file_t` label. Run `sudo ./scripts/install-sandbox.sh` again; check with `ls -Zd /home/mrdata/research` |
-| Sandboxed tools can't write in the workspace | The container user isn't the agent's UID: run `sudo ./scripts/install-sandbox.sh` again, then `sudo -iu mrdata openclaw sandbox recreate --all` |
+| Sandboxed tools can't write in the workspace | The container user isn't the agent's UID: run `sudo ./scripts/install-sandbox.sh` again (it recreates the sandboxes; `openclaw sandbox recreate` only works with the gateway stopped) |
+| *Sandbox security: bind mount … is outside allowed roots* or *… targets reserved container path* | OpenClaw refuses mounts from outside a workspace, or into `/workspace`, without an override. `install-sandbox.sh` sets the overrides for its own mounts and for `SANDBOX_BINDS`; mounts added by hand need them too (see [Two agents](#two-agents-main-and-researcher)) |
 
 ## Tests
 
