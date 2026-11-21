@@ -23,13 +23,26 @@ fi
 : "${COLIBRI_EXTRA_ARGS:=--auto-tier}"
 : "${COLIBRI_REQUIRE_KEY:=yes}"
 : "${COLIBRI_KEY_FILE:=/etc/colibri/colibri.env}"
+: "${COLIBRI_MODEL_ID:=}"
 : "${OLLAMA_UNIT:=ollama}"
 : "${OLLAMA_PORT:=11434}"
+: "${OLLAMA_EMBED_MODEL:=nomic-embed-text}"
 : "${OPENCLAW_VERSION:=2026.11.6}"
 : "${OPENCLAW_PORT:=18789}"
 : "${OPENCLAW_UNIT:=openclaw-gateway}"
+: "${OPENCLAW_HARDEN:=yes}"
+: "${OPENCLAW_PLUGINS:=document-extract web-readability ollama}"
 : "${PONYTAIL:=no}"
 : "${PONYTAIL_REF:=96608e078b2d5ea607c5c3b8b5a54d1c1fba6846}"
+: "${SEARXNG_UNIT:=searxng}"
+: "${SEARXNG_PORT:=8888}"
+: "${SEARXNG_IMAGE:=docker.io/searxng/searxng@sha256:5ed0323b5f5f8701264ef65e239a2bd83cb57098f2b971fa30bf79c06eeae271}"
+: "${SEARXNG_CONFIG_DIR:=/etc/searxng-agent}"
+: "${SANDBOX_NETWORK:=none}"
+: "${SANDBOX_WORKSPACE:=rw}"
+: "${SANDBOX_BINDS:=}"
+: "${SANDBOX_GATEWAY_TOOLS=web_search memory_search memory_get}"
+: "${RESEARCH_DIR:=}"
 : "${PRIVILEGED_GROUPS:=wheel sudo admin docker podman libvirt lxd incus disk adm systemd-journal ollama}"
 
 COLIBRI_STATE_DIR=/var/lib/$COLIBRI_STATE_NAME
@@ -81,6 +94,12 @@ as_user() {
     DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
     "$@"
 }
+
+# oc ARGS...: run the openclaw CLI as the agent user (root only)
+oc() { as_user "$AGENT_USER" openclaw "$@"; }
+
+# config_py ARGS...: run lib/openclaw_config.py as the agent user (root only)
+config_py() { as_user "$AGENT_USER" python3 -c "$(<"$SLA_ROOT/lib/openclaw_config.py")" "$@"; }
 
 # read_key: prints the Colibri API key from COLIBRI_KEY_FILE (root only)
 read_key() {
