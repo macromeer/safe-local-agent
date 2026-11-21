@@ -60,7 +60,7 @@ flowchart LR
 - **It is not a VM or a container.** It shares your kernel; a kernel exploit breaks out. For hostile workloads, use a VM.
 - **Ollama has no authentication.** Any local user, the agent included, can list, pull and delete Ollama models.
 - **The agent keeps its key to Colibri** in its own config, so it can use the model directly, which is the point.
-- **Anything you share with it is exposed.** If you want it to work on your files, make a separate shared folder; don't open your home folder.
+- **Anything you share with it is exposed.** If you want it to work on your files, make a separate shared folder; don't open your home folder. See [Sharing files with the agent](#sharing-files-with-the-agent).
 
 ## Requirements
 
@@ -119,6 +119,98 @@ sudo -iu mrdata
 export XDG_RUNTIME_DIR=/run/user/$(id -u)
 export DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus
 openclaw gateway status
+```
+
+## Sharing files with the agent
+
+The agent can only use what its own account (`mrdata`) can read. Keep your
+home folder at `700`, and share folders outside it instead.
+
+Before you share anything:
+
+- **It can send out anything it can read**, because it has internet access.
+  Only share what you could live with leaking through a prompt injection.
+- **It can delete anything it can write.** Share read-only unless it really
+  needs to write, give it a separate folder for its output, and keep backups.
+
+### Share a folder
+
+ACLs grant access to one user and take effect right away, without logging in
+again. Run these as your admin account:
+
+```bash
+sudo mkdir -p /srv/agent-share
+sudo chown "$USER": /srv/agent-share
+
+# Read-only: the files there now, and files you add later
+setfacl -R -m u:mrdata:rX /srv/agent-share
+setfacl -d -m u:mrdata:rX /srv/agent-share
+
+# Read-write, for a folder where it saves its output.
+# The d: entries keep new files editable by both of you.
+mkdir -p /srv/agent-share/out
+setfacl -R -m u:mrdata:rwX,d:u:mrdata:rwX,d:u:"$USER":rwX /srv/agent-share/out
+```
+
+Check what the agent can reach with `getfacl /srv/agent-share`, or
+`sudo -u mrdata ls /srv/agent-share`.
+
+If the folder has to stay inside your home, bind-mount only that folder
+instead of opening your home:
+
+```bash
+sudo mkdir -p /srv/agent-share/thesis
+sudo mount --bind ~/Documents/thesis /srv/agent-share/thesis
+```
+
+Then apply the ACLs above to `/srv/agent-share/thesis`. To keep the mount after
+a reboot, add this line to `/etc/fstab` (leave out `,ro` if it should write):
+
+```
+/home/you/Documents/thesis  /srv/agent-share/thesis  none  bind,ro  0 0
+```
+
+To stop sharing a folder, remove its ACL entries with
+`setfacl -R -x u:mrdata,d:u:mrdata /srv/agent-share`, and unmount any bind
+mounts.
+
+### Give it files to learn from
+
+The agent doesn't train on your files. It either **reads them when you ask**
+("summarise /srv/agent-share/report.pdf"), or **indexes them for memory
+search** so it can find them later by meaning. Memory search only indexes
+Markdown by default, so convert PDFs and documents to `.md` for that.
+
+**One-off notes:** copy them into its memory folder. It can't read your home,
+so copy as root and hand them over:
+
+```bash
+sudo cp -r ~/notes/projectX /home/mrdata/.openclaw/workspace/memory/
+sudo chown -R mrdata:mrdata /home/mrdata/.openclaw/workspace/memory/projectX
+sudo -iu mrdata openclaw memory index --force
+```
+
+**Files that keep changing:** leave them in a shared folder and add it to the
+index. In `/home/mrdata/.openclaw/openclaw.json`, add this under the top-level
+object:
+
+```json
+"memory": {
+  "search": {
+    "extraPaths": [
+      { "path": "/srv/agent-share/docs", "pattern": "**/*.md" }
+    ]
+  }
+}
+```
+
+Keep the file plain JSON (no comments, quoted keys): `install-openclaw.sh
+--key-only` reads it with a strict JSON parser. Use the real path, not a
+symlink, because the indexer skips symlinks. Then rebuild and check the index:
+
+```bash
+sudo -iu mrdata openclaw memory index --force
+sudo -iu mrdata openclaw memory status
 ```
 
 ## What the scripts do
