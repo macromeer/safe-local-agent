@@ -1,4 +1,4 @@
-## Research and security rules (from safe-local-agent)
+## Research and security rules (from safe-local-agents)
 
 ### Web research
 

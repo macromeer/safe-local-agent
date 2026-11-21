@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2034  # settings and colors are used by the scripts that source this
-# Shared settings and helpers for the safe-local-agent scripts.
+# Shared settings and helpers for the safe-local-agents scripts.
 # Sourced by the scripts in scripts/, not run on its own.
 
 SLA_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)

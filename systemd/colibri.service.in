@@ -1,7 +1,7 @@
 # Rendered by scripts/install-colibri-service.sh. Edit the template, not the
 # installed copy in /etc/systemd/system.
 [Unit]
-Description=Colibri OpenAI-compatible model server (safe-local-agent)
+Description=Colibri OpenAI-compatible model server (safe-local-agents)
 After=network.target
 
 [Service]

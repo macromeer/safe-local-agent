@@ -2,7 +2,7 @@
 # copy in /etc/containers/systemd (a Podman Quadlet: systemd turns it into
 # @UNIT@.service).
 [Unit]
-Description=SearXNG web search for the local agent (safe-local-agent)
+Description=SearXNG web search for the local agent (safe-local-agents)
 Wants=network-online.target
 After=network-online.target
 

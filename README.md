@@ -1,7 +1,7 @@
-# safe-local-agent
+# safe-local-agents
 
-[![ShellCheck](https://github.com/macromeer/safe-local-agent/actions/workflows/shellcheck.yml/badge.svg)](https://github.com/macromeer/safe-local-agent/actions/workflows/shellcheck.yml)
-[![Tests](https://github.com/macromeer/safe-local-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/macromeer/safe-local-agent/actions/workflows/tests.yml)
+[![ShellCheck](https://github.com/macromeer/safe-local-agents/actions/workflows/shellcheck.yml/badge.svg)](https://github.com/macromeer/safe-local-agents/actions/workflows/shellcheck.yml)
+[![Tests](https://github.com/macromeer/safe-local-agents/actions/workflows/tests.yml/badge.svg)](https://github.com/macromeer/safe-local-agents/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 Run a local AI agent ([OpenClaw](https://docs.openclaw.ai)) on local models
@@ -108,8 +108,8 @@ Colibri serving Qwen3.6-35B.
 ## Install
 
 ```bash
-git clone https://github.com/macromeer/safe-local-agent.git
-cd safe-local-agent
+git clone https://github.com/macromeer/safe-local-agents.git
+cd safe-local-agents
 cp config.env.example config.env    # optional: change user name, ports, paths
 ```
 
@@ -414,7 +414,7 @@ credential folders (`~/.ssh`, `~/.config`, …), sockets or symlink tricks.
 
 Both agents also get security instructions in their `AGENTS.md`, from
 [`agent-instructions/`](agent-instructions/), between
-`safe-local-agent:security` markers that the script replaces on each run.
+`safe-local-agents:security` markers that the script replaces on each run.
 The researcher treats everything it reads as data, refuses instructions from
 pages, and puts `⚠ Possible prompt injection: <URL> asked me to <what>` at
 the top of its result. `main` treats results as untrusted and asks you

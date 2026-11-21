@@ -310,7 +310,7 @@ if [[ $root == yes ]] && user_exists "$AGENT_USER" && [[ -f $(home_of "$AGENT_US
     fi
     if [[ ${rcfg_model:-unset} == set ]]; then note "researcher has its own model: it may load a second one on the GPU"; fi
     for ws in "$main_ws" "$researcher_ws"; do
-      if grep -qs 'safe-local-agent:security begin' "$ws/AGENTS.md"; then pass "security instructions in $ws/AGENTS.md"
+      if grep -Eqs 'safe-local-agents?:security begin' "$ws/AGENTS.md"; then pass "security instructions in $ws/AGENTS.md"
       else warning "no security instructions in $ws/AGENTS.md (install-sandbox.sh)"; fi
     done
   fi

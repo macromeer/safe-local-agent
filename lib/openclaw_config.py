@@ -31,7 +31,7 @@ and builds the JSON values for it.
       reads a JSON list on stdin (or nothing), prints it with ITEMs added or
       removed. An ITEM starting with { is a JSON object
   put-block FILE NAME
-      puts stdin into FILE between safe-local-agent:NAME markers, replacing
+      puts stdin into FILE between safe-local-agents:NAME markers, replacing
       an earlier block (for instructions in a workspace's AGENTS.md)
   check-bind BIND...
       exits non-zero unless every BIND is safe to mount (see sandbox-json)
@@ -179,11 +179,13 @@ def parse_item(arg):
 
 
 def put_block(text, name, block):
-    """text with block between safe-local-agent markers, replacing an old block."""
-    begin = f"<!-- safe-local-agent:{name} begin (managed by install-sandbox.sh) -->"
-    end = f"<!-- safe-local-agent:{name} end -->"
+    """text with block between safe-local-agents markers, replacing an old block
+    (also one with the markers of the project's old name, safe-local-agent)."""
+    begin = f"<!-- safe-local-agents:{name} begin (managed by install-sandbox.sh) -->"
+    end = f"<!-- safe-local-agents:{name} end -->"
     new = f"{begin}\n{block.strip()}\n{end}\n"
-    pattern = re.compile(re.escape(begin.split(" (")[0]) + r".*?" + re.escape(end) + r"\n?", re.S)
+    n = re.escape(name)
+    pattern = re.compile(rf"<!-- safe-local-agents?:{n} begin.*?<!-- safe-local-agents?:{n} end -->\n?", re.S)
     if pattern.search(text):
         return pattern.sub(lambda _: new, text, count=1)
     sep = "" if not text or text.endswith("\n\n") else ("\n" if text.endswith("\n") else "\n\n")

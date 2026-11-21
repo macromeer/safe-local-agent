@@ -258,7 +258,7 @@ class PutBlock(unittest.TestCase):
         self.assertIn("## Rules v1", once)
         twice = put_block(once, "security", "## Rules v2")
         self.assertNotIn("v1", twice)
-        self.assertEqual(twice.count("safe-local-agent:security begin"), 1)
+        self.assertEqual(twice.count("safe-local-agents:security begin"), 1)
         self.assertEqual(put_block(twice, "security", "## Rules v2"), twice)  # idempotent
 
     def test_keeps_text_after_the_block(self):
@@ -266,7 +266,16 @@ class PutBlock(unittest.TestCase):
         self.assertTrue(put_block(text, "security", "new rules").endswith("\nuser notes\n"))
 
     def test_empty_file(self):
-        self.assertTrue(put_block("", "security", "rules").startswith("<!-- safe-local-agent:security begin"))
+        self.assertTrue(put_block("", "security", "rules").startswith("<!-- safe-local-agents:security begin"))
+
+    def test_replaces_block_with_the_old_project_name(self):
+        old = ("intro\n<!-- safe-local-agent:security begin (managed by install-sandbox.sh) -->\n"
+               "old rules\n<!-- safe-local-agent:security end -->\nafter\n")
+        new = put_block(old, "security", "new rules")
+        self.assertNotIn("old rules", new)
+        self.assertNotIn("safe-local-agent:", new)
+        self.assertEqual(new.count("safe-local-agents:security begin"), 1)
+        self.assertTrue(new.startswith("intro\n") and new.endswith("after\n"))
 
 
 class AlsoAllow(unittest.TestCase):
