@@ -1,0 +1,25 @@
+# Rendered by scripts/install-searxng.sh. Edit the template, not the installed
+# copy in /etc/containers/systemd (a Podman Quadlet: systemd turns it into
+# @UNIT@.service).
+[Unit]
+Description=SearXNG web search for the local agent (safe-local-agent)
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+# Pinned by digest: change it on purpose (SEARXNG_IMAGE), not by accident
+Image=@IMAGE@
+# Loopback only: the agent and you can use it, your network can't
+PublishPort=127.0.0.1:@PORT@:8080
+Volume=@CONFIG_DIR@/settings.yml:/etc/searxng/settings.yml:ro,Z
+# root in the container is an unused high UID on the host, not root:
+# SearXNG reads untrusted web content all day
+UserNS=auto
+
+[Service]
+Restart=always
+# The first start pulls the image
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target
