@@ -1,0 +1,25 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python unit tests
+        run: python3 -m unittest discover -s tests -v
+
+  integration:
+    # Breaks and repairs a throwaway agent user on the disposable runner,
+    # checking that verify.sh catches each break.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: create-agent-user.sh + verify.sh
+        run: sudo env CI="$CI" bash tests/integration.sh

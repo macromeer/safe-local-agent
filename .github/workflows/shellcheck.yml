@@ -13,6 +13,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: ShellCheck
-        run: shellcheck -x scripts/*.sh lib/common.sh
+        run: shellcheck -x scripts/*.sh lib/common.sh tests/*.sh
       - name: Python syntax
         run: python3 -m py_compile lib/set_openclaw_key.py

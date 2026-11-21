@@ -110,14 +110,20 @@ is_loopback_host() { [[ $1 == 127.* || $1 == localhost || $1 == ::1 ]]; }
 
 # extract_openclaw_key PORT: python that prints the apiKey of the OpenClaw
 # provider pointing at a local PORT (run as the agent user, reads its config)
+# (same matching as is_local in set_openclaw_key.py)
 OPENCLAW_PROVIDER_PY='
 import json, os, sys
-port = sys.argv[1]
+from urllib.parse import urlsplit
+port = int(sys.argv[1])
 path = os.path.expanduser("~/.openclaw/openclaw.json")
 cfg = json.load(open(path))
 for name, p in cfg.get("models", {}).get("providers", {}).items():
-    url = str(p.get("baseUrl", ""))
-    if any(url.startswith(f"http://{h}:{port}") for h in ("127.0.0.1", "localhost", "[::1]")):
+    try:
+        u = urlsplit(str(p.get("baseUrl", "")))
+        local = u.scheme == "http" and u.hostname in ("127.0.0.1", "localhost", "::1") and u.port == port
+    except ValueError:
+        local = False
+    if local:
         print(p.get("apiKey", ""))
         break
 '

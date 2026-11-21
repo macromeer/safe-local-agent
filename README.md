@@ -1,6 +1,7 @@
 # safe-local-agent
 
 [![ShellCheck](https://github.com/macromeer/safe-local-agent/actions/workflows/shellcheck.yml/badge.svg)](https://github.com/macromeer/safe-local-agent/actions/workflows/shellcheck.yml)
+[![Tests](https://github.com/macromeer/safe-local-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/macromeer/safe-local-agent/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 Run a local AI agent ([OpenClaw](https://docs.openclaw.ai)) on local models
@@ -156,6 +157,15 @@ sudo ./scripts/install-openclaw.sh --key-only             # after changing the C
 | OpenClaw gets `401` from Colibri | The key in its config is missing or old: `sudo ./scripts/install-openclaw.sh --key-only` |
 | `port 8000 is already in use` | A Colibri you started by hand is still running: Ctrl+C it or `coli stop` |
 | Gateway stops when you log out | Linger is off: `sudo loginctl enable-linger mrdata` |
+
+## Tests
+
+- `python3 -m unittest discover -s tests`: unit tests, safe to run anywhere.
+- `tests/integration.sh`: runs `create-agent-user.sh`, then breaks the agent's
+  separation on purpose (sudo rule, `sudo` group, open home, password, linger,
+  a listener on all interfaces) and checks that `verify.sh` reports each break
+  and `create-agent-user.sh` repairs it. It grants a test user sudo rights
+  along the way, so it only runs in CI (GitHub Actions, on a throwaway VM).
 
 ## License
 

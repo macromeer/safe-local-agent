@@ -7,30 +7,47 @@ import json
 import os
 import sys
 import tempfile
+from urllib.parse import urlsplit
 
-port = sys.argv[1]
-path = sys.argv[2] if len(sys.argv) > 2 else os.path.expanduser("~/.openclaw/openclaw.json")
-key = sys.stdin.readline().strip()
-if not key:
-    sys.exit("no key on stdin")
+LOCAL_HOSTS = ("127.0.0.1", "localhost", "::1")
 
-with open(path, encoding="utf-8") as f:
-    cfg = json.load(f)
 
-hits = []
-for name, provider in cfg.get("models", {}).get("providers", {}).items():
-    url = str(provider.get("baseUrl", ""))
-    if any(url.startswith(f"http://{host}:{port}") for host in ("127.0.0.1", "localhost", "[::1]")):
-        provider["apiKey"] = key
-        hits.append(name)
+def is_local(url, port):
+    """True if url is http:// on a loopback host and exactly this port."""
+    try:
+        u = urlsplit(str(url))
+        return u.scheme == "http" and u.hostname in LOCAL_HOSTS and u.port == int(port)
+    except ValueError:  # malformed URL or port
+        return False
 
-if not hits:
-    sys.exit(f"no provider in {path} points at http://127.0.0.1:{port}")
 
-fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".openclaw.json.")
-with os.fdopen(fd, "w", encoding="utf-8") as f:
-    json.dump(cfg, f, indent=2)
-    f.write("\n")
-os.chmod(tmp, 0o600)
-os.replace(tmp, path)
-print("API key set for provider(s): " + ", ".join(hits))
+def main(argv):
+    port = argv[1]
+    path = argv[2] if len(argv) > 2 else os.path.expanduser("~/.openclaw/openclaw.json")
+    key = sys.stdin.readline().strip()
+    if not key:
+        sys.exit("no key on stdin")
+
+    with open(path, encoding="utf-8") as f:
+        cfg = json.load(f)
+
+    hits = []
+    for name, provider in cfg.get("models", {}).get("providers", {}).items():
+        if is_local(provider.get("baseUrl", ""), port):
+            provider["apiKey"] = key
+            hits.append(name)
+
+    if not hits:
+        sys.exit(f"no provider in {path} points at http://127.0.0.1:{port}")
+
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".openclaw.json.")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2)
+        f.write("\n")
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, path)
+    print("API key set for provider(s): " + ", ".join(hits))
+
+
+if __name__ == "__main__":
+    main(sys.argv)
