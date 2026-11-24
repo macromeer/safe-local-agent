@@ -19,9 +19,11 @@ export AGENT_USER=sla-ci-agent
 export OPENCLAW_PORT=18789
 SUDOERS_FILE=/etc/sudoers.d/zz-sla-ci
 listener=""
+copies=""
 
 cleanup() {
   rm -f "$SUDOERS_FILE"
+  [[ -z $copies ]] || rm -rf -- "$copies"
   [[ -z $listener ]] || kill "$listener" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -45,6 +47,17 @@ expect() {
   done <<<"$out"
   bad "expected a $1 line containing '$2'. verify.sh said:"
   printf '%s\n' "$out" | sed 's/^/        | /'
+}
+
+# refuses TEXT [VAR=VALUE...] SCRIPT: SCRIPT --help stops with an error containing
+# TEXT. Every script checks its settings before anything else, so with --help
+# nothing would happen even if the check were missing.
+refuses() {
+  local text=$1 out
+  shift
+  if out=$(env "$@" --help 2>&1); then bad "accepted: $*"
+  elif [[ $out == *"$text"* ]]; then ok "refused: $*"
+  else bad "refused $*, but not with '$text': $out"; fi
 }
 
 # listen ADDR: start a dummy server on ADDR:OPENCLAW_PORT and wait until it is up
@@ -77,6 +90,36 @@ expect PASS "sudo grants it nothing"
 expect PASS "password locked"
 expect PASS "other users cannot look inside"
 expect PASS "linger on"
+
+step "settings that point at the wrong account or folder"
+refuses "is root" AGENT_USER=root "$ROOT/scripts/uninstall.sh"
+refuses "is root" AGENT_USER=root "$ROOT/scripts/create-agent-user.sh"
+refuses "is root" COLIBRI_USER=root "$ROOT/scripts/uninstall.sh"
+if [[ -n ${SUDO_USER:-} ]]; then
+  refuses "your own account" AGENT_USER="$SUDO_USER" "$ROOT/scripts/create-agent-user.sh"
+fi
+refuses "system account" AGENT_USER=daemon "$ROOT/scripts/create-agent-user.sh"
+refuses "not a valid user name" AGENT_USER="bad name" "$ROOT/scripts/verify.sh"
+refuses "must be different" COLIBRI_USER="$AGENT_USER" "$ROOT/scripts/install-colibri-service.sh"
+refuses "plain folder name" COLIBRI_STATE_NAME=.. "$ROOT/scripts/uninstall.sh"
+if "$ROOT/scripts/uninstall.sh" --help >/dev/null 2>&1; then ok "accepted: the test settings"
+else bad "the test settings were refused"; fi
+
+step "a checkout the agent can change"
+copies=$(mktemp -d)
+chmod 755 "$copies"
+mkdir -m 755 "$copies/parent"
+copy=$copies/parent/sla
+mkdir -m 755 "$copy"
+cp -r "$ROOT/lib" "$ROOT/scripts" "$copy/"
+chmod o+w "$copy/lib/common.sh"
+refuses "can write $copy/lib/common.sh" "$copy/scripts/verify.sh"
+chmod o-w "$copy/lib/common.sh"
+chmod 777 "$copies/parent"
+refuses "can write $copies/parent" "$copy/scripts/verify.sh"
+chmod +t "$copies/parent"
+if "$copy/scripts/verify.sh" --help >/dev/null 2>&1; then ok "accepted: a writable parent with the sticky bit"
+else bad "refused a writable parent with the sticky bit"; fi
 
 step "agent in the sudo group"
 usermod -aG sudo "$AGENT_USER"
