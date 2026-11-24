@@ -92,6 +92,41 @@ flowchart LR
 - **The agent keeps its key to Colibri** in its own config, so it can use the model directly, which is the point.
 - **Anything you share with it is exposed.** If you want it to work on your files, make a separate shared folder; don't open your home folder. See [Sharing files with the agent](#sharing-files-with-the-agent).
 
+## How it compares
+
+The parts are standard, and so is the advice to use them: OpenClaw's
+[security docs](https://docs.openclaw.ai/gateway/security/prompt-injection)
+say to sandbox tools and treat web content as hostile, and handbooks such
+as [openclaw-security](https://github.com/zast-ai/openclaw-security)
+recommend a separate user without sudo or Docker. What this adds:
+
+- **It is scripted, and it checks itself.** OpenClaw's own
+  [Podman install](https://docs.openclaw.ai/install/podman) runs the gateway
+  in a rootless container under your own account. Here the gateway and its
+  tools, the model server and the search engine each run as a different
+  user, and `verify.sh` fails when any of that drifts. CI breaks the
+  separation on purpose and checks that `verify.sh` notices.
+- **It tests with real model turns.** `test-agents.sh` asks the agents to
+  do what they shouldn't and judges by what happened (files, tool lists,
+  checksums), not by what the model says.
+- **The agent that reads the web can't rewrite its own instructions.** The
+  researcher has no shell, and its workspace (`AGENTS.md`, skills) isn't in
+  its sandbox, so a page that hijacks one research can't plant instructions
+  for every later one.
+- **No cloud API.** The chat model, embeddings and web search run on your
+  machine, without API keys or accounts.
+
+What it is not: the split into `main` and `researcher` looks like the
+[Dual LLM pattern](https://simonwillison.net/2023/Apr/25/dual-llm-pattern/),
+but it is a weaker form. There, and in
+[CaMeL](https://arxiv.org/abs/2503.18813), the agent with tools never sees
+untrusted text; here `main` reads the researcher's results. What limits the
+damage is `main`'s sandbox (no network, no config), not a guarantee that
+`main` can't be misled. The sandbox also runs as the agent's own UID, so a
+container escape lands as `mrdata`, the gateway's user; OpenClaw
+[discusses a separate UID](https://github.com/openclaw/openclaw/issues/178820)
+for that.
+
 ## Requirements
 
 - Linux with systemd and `sudo` for your admin account
