@@ -542,6 +542,11 @@ sudo ./scripts/install-openclaw.sh --key-only             # after changing the C
   and `create-agent-user.sh` repairs it. It grants a test user sudo rights
   along the way, so it only runs in CI (GitHub Actions, on a throwaway VM).
 
+## Security issues
+
+Found a way around the separation? Please report it privately, not as an
+issue: see [SECURITY.md](SECURITY.md).
+
 ## License
 
 [MIT](LICENSE)
