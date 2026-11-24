@@ -141,6 +141,11 @@ sudo ./scripts/test-agents.sh
 ```
 
 Every script can be run again; it only fixes what isn't right yet. Each one has `--help`.
+They refuse settings that point at the wrong account (`AGENT_USER` or
+`COLIBRI_USER` set to root, to your own account or to a system account),
+and they refuse to run if the agent user can change this checkout, since
+they run its code as root. Clone it as your own account, outside the
+agent's reach.
 
 If your own account used OpenClaw before, remove it there once the agent works:
 `npm uninstall -g openclaw` and delete `~/.openclaw` (it holds a gateway token).

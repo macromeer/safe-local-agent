@@ -65,6 +65,47 @@ need_cmd() {
 
 user_exists() { getent passwd "$1" >/dev/null; }
 home_of()     { getent passwd "$1" | cut -d: -f6; }
+
+# check_settings: refuse settings that would point the scripts at the wrong
+# account or folder. They lock AGENT_USER's password, strip its groups and
+# (uninstall.sh) delete it with its home; they chown and delete
+# COLIBRI_STATE_DIR. A typo there must not hit root, you or a system account.
+check_settings() {
+  local name what uid uid_min admin=${SUDO_USER:-} writable d
+  for what in AGENT_USER COLIBRI_USER; do
+    name=${!what}
+    [[ $name =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die "$what='$name' is not a valid user name"
+    if [[ $name == root ]] || { user_exists "$name" && [[ $(id -u "$name") == 0 ]]; }; then
+      die "$what=$name is root; it needs an account of its own"
+    fi
+    [[ -z $admin || $name != "$admin" ]] || die "$what=$name is your own account; it needs an account of its own"
+  done
+  [[ $AGENT_USER != "$COLIBRI_USER" ]] || die "AGENT_USER and COLIBRI_USER must be different users"
+  if user_exists "$AGENT_USER"; then
+    uid=$(id -u "$AGENT_USER")
+    uid_min=$(awk '$1 == "UID_MIN" {print $2}' /etc/login.defs 2>/dev/null || true)
+    (( uid >= ${uid_min:-1000} )) \
+      || die "AGENT_USER=$AGENT_USER is a system account (UID $uid); choose a new name, the scripts create it"
+    # The scripts run this checkout's code and config.env as root: if the
+    # agent could change them, it could run anything as root.
+    [[ $(stat -c %U "$SLA_ROOT" 2>/dev/null) != "$AGENT_USER" ]] \
+      || die "AGENT_USER=$AGENT_USER owns $SLA_ROOT; it should be your own account's checkout"
+    if [[ $EUID -eq 0 ]]; then
+      writable=$(runuser -u "$AGENT_USER" -- find "$SLA_ROOT" -writable -print -quit 2>/dev/null || true)
+      # A writable parent without the sticky bit lets it swap the whole checkout
+      d=$SLA_ROOT
+      while [[ -z $writable && $d != / ]]; do
+        d=$(dirname -- "$d")
+        if [[ ! -k $d ]] && runuser -u "$AGENT_USER" -- test -w "$d" 2>/dev/null; then writable=$d; fi
+      done
+      [[ -z $writable ]] \
+        || die "$AGENT_USER can write $writable, so it could change what these scripts run as root. Fix its permissions first."
+    fi
+  fi
+  [[ $COLIBRI_STATE_NAME =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] \
+    || die "COLIBRI_STATE_NAME='$COLIBRI_STATE_NAME' must be a plain folder name (it becomes /var/lib/<name>)"
+}
+check_settings
 # in_group USER GROUP (no pipes: grep -q + pipefail gives false negatives)
 in_group()    { [[ " $(id -nG "$1" 2>/dev/null) " == *" $2 "* ]]; }
 
